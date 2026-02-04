@@ -14,7 +14,7 @@ async function login() {
 
   const userId = data.user.id;
 
-  const { data: user } = await supabase
+  const { data: user } = await db
     .from("users")
     .select("role")
     .eq("id", userId)
