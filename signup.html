@@ -21,6 +21,8 @@
 <!-- ✅ Your supabase config -->
 <script src="supabase.js"></script>
 
+<script src="auth.js"></script>
+
 <script>
 async function signup() {
   const email = document.getElementById("email").value;
@@ -29,7 +31,7 @@ async function signup() {
   const unique_id = document.getElementById("unique_id").value;
   const room_no = document.getElementById("room_no").value;
 
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await db.auth.signUp({
     email,
     password
   });
@@ -41,13 +43,13 @@ async function signup() {
 
   const userId = data.user.id;
 
-  await supabase.from("users").insert([{
+  await db.from("users").insert([{
     id: userId,
     name,
     role: "student"
   }]);
 
-  await supabase.from("students").insert([{
+  await db.from("students").insert([{
     id: userId,
     unique_id,
     room_no
