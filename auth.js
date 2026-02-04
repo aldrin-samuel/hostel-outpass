@@ -25,23 +25,9 @@ async function login() {
     return;
   }
 
-  switch (user.role) {
-    case "student":
-      window.location.href = "student.html";
-      break;
-    case "adviser":
-      window.location.href = "adviser.html";
-      break;
-    case "hod":
-      window.location.href = "hod.html";
-      break;
-    case "warden":
-      window.location.href = "warden.html";
-      break;
-    case "security":
-      window.location.href = "security.html";
-      break;
-    default:
-      alert("Unknown role");
-  }
+  if (user.role === "student") window.location.href = "student.html";
+  if (user.role === "adviser") window.location.href = "adviser.html";
+  if (user.role === "hod") window.location.href = "hod.html";
+  if (user.role === "warden") window.location.href = "warden.html";
+  if (user.role === "security") window.location.href = "security.html";
 }
