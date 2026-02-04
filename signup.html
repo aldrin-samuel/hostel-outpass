@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Signup</title>
+</head>
+<body>
+<h2>Student Signup</h2>
+
+<input id="email" placeholder="Email"><br>
+<input id="password" type="password" placeholder="Password"><br>
+<input id="name" placeholder="Name"><br>
+<input id="unique_id" placeholder="Unique ID"><br>
+<input id="room_no" placeholder="Room No"><br>
+
+<button onclick="signup()">Signup</button>
+
+<script src="supabase.js"></script>
+<script>
+async function signup() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const name = document.getElementById("name").value;
+  const unique_id = document.getElementById("unique_id").value;
+  const room_no = document.getElementById("room_no").value;
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password
+  });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const userId = data.user.id;
+
+  await supabase.from("users").insert([{
+    id: userId,
+    name,
+    role: "student"
+  }]);
+
+  await supabase.from("students").insert([{
+    id: userId,
+    unique_id,
+    room_no
+  }]);
+
+  alert("Signup successful!");
+  window.location.href = "index.html";
+}
+</script>
+</body>
+</html>

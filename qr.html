@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My Outpass QR</title>
+</head>
+<body>
+<h2>My Approved Outpass QR</h2>
+
+<div id="qr"></div>
+<p id="status"></p>
+
+<script src="supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+<script>
+async function loadQR() {
+  const { data: user } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from("outpass_requests")
+    .select("*")
+    .eq("student_id", user.user.id)
+    .eq("final_status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (!data || data.length === 0) {
+    document.getElementById("status").innerText = "No approved outpass yet.";
+    return;
+  }
+
+  const requestId = data[0].id;
+
+  QRCode.toCanvas(document.getElementById("qr"), requestId);
+}
+
+loadQR();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Security Scanner</title>
+</head>
+<body>
+<h2>Gate Security QR Scanner</h2>
+
+<div id="reader" style="width:300px;"></div>
+<h3>Result:</h3>
+<pre id="result"></pre>
+<button onclick="markOut()">Mark OUT</button>
+<button onclick="markIn()">Mark IN</button>
+
+
+<div id="reader"></div>
+<div id="result"></div>
+<button onclick="markOut()">Mark OUT</button>
+<button onclick="markIn()">Mark IN</button>
+
+<script src="supabase.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="security.js"></script>
+
+</body>
+</html>
