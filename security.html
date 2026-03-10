@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Scanner - Hostel Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- HTML5 QRCode -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+    
+    <div class="header">
+        <div class="header-title">Gate Security Scanner</div>
+        <div class="nav-links">
+            <button id="logout-btn">Logout</button>
+        </div>
+    </div>
+
+    <div class="dashboard-container" style="grid-template-columns: 1fr;">
+        
+        <div class="card animate-fade-in" style="max-width: 600px; margin: 0 auto; width: 100%;">
+            <h3 style="color: var(--primary-color); text-align: center; margin-bottom: 1.5rem;">Scan Outpass QR</h3>
+            
+            <div id="reader" style="width: 100%; border-radius: var(--border-radius); overflow: hidden; margin-bottom: 1.5rem;"></div>
+            
+            <div id="scan-result" class="hidden">
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #eee;">
+                
+                <h4 style="color: var(--primary-color); margin-bottom: 1rem;">Outpass Details</h4>
+                <div id="student-info" style="margin-bottom: 1rem;"></div>
+                <div id="request-info" style="margin-bottom: 1rem;"></div>
+                
+                <div id="security-actions" class="request-actions hidden" style="justify-content: center;">
+                    <button id="btn-out" class="btn btn-warning" style="background-color: var(--warning); color: #fff; width: auto;" onclick="markStatus(true)">Mark OUT</button>
+                    <button id="btn-in" class="btn btn-success" style="width: auto;" onclick="markStatus(false)">Mark IN</button>
+                </div>
+                
+                <p id="action-msg" class="text-center mt-3" style="font-weight: 600;"></p>
+
+                <div class="text-center mt-3">
+                    <button class="btn btn-secondary" onclick="resetScanner()">Scan Another</button>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- Main Logic -->
+    <script src="app.js"></script>
+    <script>
+        let html5QrcodeScanner;
+        let currentScannedRequestId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('logout-btn').addEventListener('click', signOut);
+
+            const user = await getCurrentUser();
+            if (!user) return; // app.js will handle redirect based on path soon, but let's be safe.
+
+            // Initialize Scanner
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: {width: 250, height: 250} },
+                /* verbose= */ false
+            );
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        });
+
+        async function onScanSuccess(decodedText) {
+            // Stop scanning temporarily
+            if (html5QrcodeScanner) {
+                try {
+                    await html5QrcodeScanner.clear();
+                } catch(e) {
+                    console.log("Scanner clear error", e);
+                }
+            }
+            
+            // Expected that decodedText is the UUID of the outpass_requests
+            currentScannedRequestId = decodedText;
+
+            document.getElementById('scan-result').classList.remove('hidden');
+            document.getElementById('action-msg').textContent = 'Fetching details...';
+            document.getElementById('action-msg').style.color = 'var(--text-light)';
+            
+            document.getElementById('security-actions').classList.add('hidden');
+
+            // Fetch Request
+            const { data: req, error } = await db
+                .from('outpass_requests')
+                .select(`
+                    id, 
+                    purpose, 
+                    out_time, 
+                    in_time, 
+                    final_status,
+                    is_outside,
+                    student:students ( name, register_number, room_number, phone, hostel:hostels(name) )
+                `)
+                .eq('id', decodedText)
+                .single();
+
+            if (error || !req) {
+                document.getElementById('action-msg').textContent = 'Invalid or Not Found QR Code.';
+                document.getElementById('action-msg').style.color = 'var(--danger)';
+                return;
+            }
+
+            const hostelName = req.student.hostel ? req.student.hostel.name : 'Unknown Hostel';
+            
+            document.getElementById('student-info').innerHTML = `
+                <strong>Name:</strong> ${req.student.name} <br>
+                <strong>Register No:</strong> ${req.student.register_number} <br>
+                <strong>Hostel:</strong> ${hostelName} (Room ${req.student.room_number}) <br>
+                <strong>Phone:</strong> ${req.student.phone}
+            `;
+
+            document.getElementById('request-info').innerHTML = `
+                <strong>Purpose:</strong> ${req.purpose} <br>
+                <strong>Approved Out:</strong> ${new Date(req.out_time).toLocaleString()} <br>
+                <strong>Expected In:</strong> ${new Date(req.in_time).toLocaleString()} <br>
+                <strong>Status:</strong> ${req.final_status.toUpperCase()} <br>
+                <strong>Current State:</strong> ${req.is_outside ? 'OUTSIDE' : 'INSIDE'}
+            `;
+
+            if (req.final_status !== 'approved') {
+                document.getElementById('action-msg').textContent = `Outpass is ${req.final_status.toUpperCase()}! DO NOT ALLOW EXIT.`;
+                document.getElementById('action-msg').style.color = 'var(--danger)';
+            } else {
+                document.getElementById('action-msg').textContent = '';
+                document.getElementById('security-actions').classList.remove('hidden');
+
+                if (req.is_outside) {
+                    // Already outside, can only Mark IN
+                    document.getElementById('btn-out').style.display = 'none';
+                    document.getElementById('btn-in').style.display = 'inline-block';
+                } else {
+                    // Inside, can only Mark OUT
+                    document.getElementById('btn-out').style.display = 'inline-block';
+                    document.getElementById('btn-in').style.display = 'none';
+                    
+                    // Optional Check: Is it too late to go out? Or has it already been completed?
+                    const now = new Date();
+                    const inTime = new Date(req.in_time);
+                    if (req.final_status === 'completed') {
+                        document.getElementById('action-msg').textContent = `Outpass has already been used and completed.`;
+                        document.getElementById('action-msg').style.color = 'var(--danger)';
+                        document.getElementById('security-actions').classList.add('hidden');
+                    } else if (now > inTime) {
+                        document.getElementById('action-msg').textContent = `WARNING: Expected Return Time has already passed.`;
+                        document.getElementById('action-msg').style.color = 'var(--warning)';
+                    }
+                }
+            }
+        }
+
+        function onScanFailure(error) {
+            // handle scan failure, usually better to ignore and keep scanning
+        }
+
+        async function markStatus(isOut) {
+            if (!currentScannedRequestId) return;
+
+            const updatePayload = { is_outside: isOut };
+            if (!isOut) {
+                // If they are coming back IN, the outpass is now completed and cannot be reused
+                updatePayload.final_status = 'completed';
+            }
+
+            const { error } = await db
+                .from('outpass_requests')
+                .update(updatePayload)
+                .eq('id', currentScannedRequestId);
+            
+            if (error) {
+                alert("Error updating status: " + error.message);
+            } else {
+                document.getElementById('security-actions').classList.add('hidden');
+                document.getElementById('action-msg').textContent = `Successfully marked ${isOut ? 'OUT' : 'IN'}.`;
+                document.getElementById('action-msg').style.color = 'var(--success)';
+            }
+        }
+
+        function resetScanner() {
+            document.getElementById('scan-result').classList.add('hidden');
+            currentScannedRequestId = null;
+            
+            // Re-initialize Scanner
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: {width: 250, height: 250} },
+                false
+            );
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
+    </script>
+</body>
+</html>

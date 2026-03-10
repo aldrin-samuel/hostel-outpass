@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warden Dashboard - Hostel Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    
+    <div class="header">
+        <div class="header-title">Hostel Outpass - Warden</div>
+        <div class="nav-links">
+            <button id="logout-btn">Logout</button>
+        </div>
+    </div>
+
+    <div class="dashboard-container" style="grid-template-columns: 1fr;">
+        <div class="card animate-fade-in" style="max-width: 1000px; margin: 0 auto; width: 100%;">
+            <h3 style="color: var(--primary-color); margin-bottom: 1.5rem;">Pending Requests (Final Approval)</h3>
+            
+            <div id="requests-list" class="request-list">
+                <p class="text-center" style="color: var(--text-light);">Loading requests...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Logic -->
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('logout-btn').addEventListener('click', signOut);
+
+            const user = await getCurrentUser();
+            if (!user) return;
+
+            // Wardens can see requests from all students basically, 
+            // since they run the hostel. We can filter by hostel if needed, 
+            // but for MVP, we just take all requests where `hod_status = 'approved'` and `warden_status = 'pending'`.
+            await fetchPendingRequests();
+        });
+
+        async function fetchPendingRequests() {
+            const list = document.getElementById('requests-list');
+            
+            // Warden sees all requests that are approved by HOD, but pending Warden
+            const { data: requests, error } = await db
+                .from('outpass_requests')
+                .select(`
+                    id, 
+                    purpose, 
+                    out_time, 
+                    in_time, 
+                    created_at,
+                    student:students ( name, register_number, room_number, phone, hostel:hostels(name) ),
+                    hod_status,
+                    warden_status
+                `)
+                .eq('hod_status', 'approved')
+                .eq('warden_status', 'pending')
+                .eq('final_status', 'pending')
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                list.innerHTML = `<p class="text-center" style="color: var(--danger);">Error loading requests</p>`;
+                return;
+            }
+
+            if (!requests || requests.length === 0) {
+                list.innerHTML = `<p class="text-center" style="color: var(--text-light);">No pending requests.</p>`;
+                return;
+            }
+
+            list.innerHTML = '';
+            requests.forEach(req => {
+                const item = document.createElement('div');
+                item.className = `request-item`;
+                
+                const outDate = new Date(req.out_time).toLocaleString();
+                const inDate = new Date(req.in_time).toLocaleString();
+                const hostelName = req.student.hostel ? req.student.hostel.name : 'Unknown Hostel';
+
+                item.innerHTML = `
+                    <div class="request-header" style="flex-wrap: wrap;">
+                        <div>
+                            <span class="request-purpose">${req.student.name} (${req.student.register_number})</span>
+                            <div style="font-size: 0.9rem; color: var(--text-light);">Hostel: ${hostelName} | Room: ${req.student.room_number} | Phone: ${req.student.phone}</div>
+                        </div>
+                        <span class="badge badge-pending">Warden Pending</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <strong>Purpose:</strong> ${req.purpose}
+                    </div>
+                    <div class="request-dates mt-3">
+                        <strong>Out:</strong> ${outDate} <br>
+                        <strong>In:</strong> ${inDate}
+                    </div>
+                    <div class="request-actions">
+                        <button class="btn btn-success" onclick="updateStatus('${req.id}', 'approved')">Approve Final</button>
+                        <button class="btn btn-danger" onclick="updateStatus('${req.id}', 'rejected')">Reject Final</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function updateStatus(requestId, status) {
+            if (!confirm(`Are you sure you want to ${status} this request? This is the final decision.`)) return;
+
+            const payload = {
+                warden_status: status,
+            };
+            if (status === 'approved') payload.final_status = 'approved';
+            if (status === 'rejected') payload.final_status = 'rejected';
+            
+            const { error } = await db
+                .from('outpass_requests')
+                .update(payload)
+                .eq('id', requestId);
+
+            if (error) {
+                alert('Error updating request: ' + error.message);
+            } else {
+                await fetchPendingRequests(); // refresh list
+            }
+        }
+    </script>
+</body>
+</html>

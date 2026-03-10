@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOD Dashboard - Hostel Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    
+    <div class="header">
+        <div class="header-title">Hostel Outpass - HOD</div>
+        <div class="nav-links">
+            <button id="logout-btn">Logout</button>
+        </div>
+    </div>
+
+    <div class="dashboard-container" style="grid-template-columns: 1fr;">
+        <div class="card animate-fade-in" style="max-width: 1000px; margin: 0 auto; width: 100%;">
+            <h3 style="color: var(--primary-color); margin-bottom: 1.5rem;">Pending Requests (Your Department)</h3>
+            
+            <div id="requests-list" class="request-list">
+                <p class="text-center" style="color: var(--text-light);">Loading requests...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Logic -->
+    <script src="app.js"></script>
+    <script>
+        let currentHodId = null;
+        let currentDeptId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('logout-btn').addEventListener('click', signOut);
+
+            const user = await getCurrentUser();
+            if (!user) return;
+
+            // Fetch HOD Profile ID & Dept ID
+            const { data: hodData } = await db
+                .from('users')
+                .select('id, department_id')
+                .eq('id', user.id)
+                .single();
+
+            if (hodData) {
+                currentHodId = hodData.id;
+                currentDeptId = hodData.department_id;
+                await fetchPendingRequests();
+            } else {
+                alert("HOD profile not found.");
+                signOut();
+            }
+        });
+
+        async function fetchPendingRequests() {
+            const list = document.getElementById('requests-list');
+            
+            if (!currentDeptId) {
+                list.innerHTML = `<p class="text-center" style="color: var(--danger);">No department assigned.</p>`;
+                return;
+            }
+
+            // HOD sees requests where adviser_status=approved and hod_status=pending
+            const { data: deptStudents } = await db
+                .from('students')
+                .select('id')
+                .eq('department_id', currentDeptId);
+                
+            const deptStudentIds = deptStudents ? deptStudents.map(s => s.id) : [];
+
+            if (deptStudentIds.length === 0) {
+                list.innerHTML = `<p class="text-center" style="color: var(--text-light);">No students in your department.</p>`;
+                return;
+            }
+
+            const { data: filteredRequests, error } = await db
+                .from('outpass_requests')
+                .select(`
+                    id, 
+                    purpose, 
+                    out_time, 
+                    in_time, 
+                    created_at,
+                    student:students ( name, register_number, room_number, phone )
+                `)
+                .in('student_id', deptStudentIds)
+                .eq('adviser_status', 'approved')
+                .eq('hod_status', 'pending')
+                .eq('final_status', 'pending') // Double check not already finalized
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                list.innerHTML = `<p class="text-center" style="color: var(--danger);">Error loading requests</p>`;
+                return;
+            }
+
+            if (!filteredRequests || filteredRequests.length === 0) {
+                list.innerHTML = `<p class="text-center" style="color: var(--text-light);">No pending requests.</p>`;
+                return;
+            }
+
+            list.innerHTML = '';
+            filteredRequests.forEach(req => {
+                const item = document.createElement('div');
+                item.className = `request-item`;
+                
+                const outDate = new Date(req.out_time).toLocaleString();
+                const inDate = new Date(req.in_time).toLocaleString();
+
+                item.innerHTML = `
+                    <div class="request-header" style="flex-wrap: wrap;">
+                        <div>
+                            <span class="request-purpose">${req.student.name} (${req.student.register_number})</span>
+                            <div style="font-size: 0.9rem; color: var(--text-light);">Room: ${req.student.room_number} | Phone: ${req.student.phone}</div>
+                        </div>
+                        <span class="badge badge-pending">HOD Pending</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <strong>Purpose:</strong> ${req.purpose}
+                    </div>
+                    <div class="request-dates mt-3">
+                        <strong>Out:</strong> ${outDate} <br>
+                        <strong>In:</strong> ${inDate}
+                    </div>
+                    <div class="request-actions">
+                        <button class="btn btn-success" onclick="updateStatus('${req.id}', 'approved')">Approve</button>
+                        <button class="btn btn-danger" onclick="updateStatus('${req.id}', 'rejected')">Reject</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function updateStatus(requestId, status) {
+            if (!confirm(`Are you sure you want to ${status} this request?`)) return;
+
+            const payload = {
+                hod_status: status
+            };
+            
+            if (status === 'rejected') {
+                payload.final_status = 'rejected';
+            }
+
+            const { error } = await db
+                .from('outpass_requests')
+                .update(payload)
+                .eq('id', requestId);
+
+            if (error) {
+                alert('Error updating request: ' + error.message);
+            } else {
+                await fetchPendingRequests(); // refresh list
+            }
+        }
+    </script>
+</body>
+</html>

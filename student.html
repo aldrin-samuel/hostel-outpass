@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - Hostel Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- QRCode JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+    
+    <div class="header">
+        <div class="header-title">Hostel Outpass - Student</div>
+        <div class="nav-links">
+            <button id="logout-btn">Logout</button>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        
+        <!-- Apply Outpass Section -->
+        <div class="card animate-fade-in" style="margin-bottom: 0;">
+            <h3 style="color: var(--primary-color); margin-bottom: 1.5rem;">Request Outpass</h3>
+            
+            <form id="outpass-form">
+                <div class="form-group">
+                    <label for="purpose">Purpose</label>
+                    <input type="text" id="purpose" class="form-control" required placeholder="e.g. Going home for weekend">
+                </div>
+
+                <div class="form-group">
+                    <label for="outTime">Expected Out Time</label>
+                    <input type="datetime-local" id="outTime" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="inTime">Expected In Time</label>
+                    <input type="datetime-local" id="inTime" class="form-control" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submit-btn" style="margin-top: 1rem;">Apply</button>
+                <p id="form-msg" class="text-center mt-3" style="font-weight: 600;"></p>
+            </form>
+
+            <!-- QR Code Section -->
+            <div id="qr-section" class="hidden" style="margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1.5rem;">
+                <h4 style="text-align: center; color: var(--success); margin-bottom: 1rem;">Active Approved Outpass</h4>
+                <div id="qrcode-container">
+                    <div id="qrcode"></div>
+                </div>
+                <p class="text-center mt-3" style="font-size: 0.9rem; color: var(--text-light);">Show this QR code at the Security Gate.</p>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="card animate-fade-in" style="margin-bottom: 0;">
+            <h3 style="color: var(--primary-color); margin-bottom: 1.5rem;">Request History</h3>
+            
+            <div id="history-list" class="request-list">
+                <!-- Dynamically populated -->
+                <p class="text-center" style="color: var(--text-light);">Loading history...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Main Logic -->
+    <script src="app.js"></script>
+    <script>
+        let currentUser = null;
+        let currentStudentId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('logout-btn').addEventListener('click', signOut);
+
+            const user = await getCurrentUser();
+            if (!user) return;
+            currentUser = user;
+
+            // Fetch Student Profile ID
+            const { data: studentData, error } = await db
+                .from('students')
+                .select('id')
+                .eq('user_id', user.id)
+                .single();
+
+            if (studentData) {
+                currentStudentId = studentData.id;
+                await fetchHistory();
+                await checkActiveOutpass();
+            } else {
+                alert("Profile not found. Please log in again.");
+                signOut();
+            }
+
+            // Handle New Request
+            document.getElementById('outpass-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('submit-btn');
+                const msg = document.getElementById('form-msg');
+                btn.disabled = true;
+                msg.textContent = 'Submitting...';
+                msg.style.color = 'var(--text-dark)';
+
+                const payload = {
+                    student_id: currentStudentId,
+                    purpose: document.getElementById('purpose').value,
+                    out_time: new Date(document.getElementById('outTime').value).toISOString(),
+                    in_time: new Date(document.getElementById('inTime').value).toISOString()
+                };
+
+                const { data, error } = await db.from('outpass_requests').insert([payload]);
+
+                if (error) {
+                    msg.style.color = 'var(--danger)';
+                    msg.textContent = error.message;
+                    btn.disabled = false;
+                } else {
+                    msg.style.color = 'var(--success)';
+                    msg.textContent = 'Outpass requested successfully!';
+                    document.getElementById('outpass-form').reset();
+                    btn.disabled = false;
+                    await fetchHistory();
+                }
+            });
+        });
+
+        async function fetchHistory() {
+            const list = document.getElementById('history-list');
+            const { data: requests, error } = await db
+                .from('outpass_requests')
+                .select('*')
+                .eq('student_id', currentStudentId)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                list.innerHTML = `<p class="text-center" style="color: var(--danger);">Error loading history</p>`;
+                return;
+            }
+
+            if (!requests || requests.length === 0) {
+                list.innerHTML = `<p class="text-center" style="color: var(--text-light);">No requests found.</p>`;
+                return;
+            }
+
+            list.innerHTML = '';
+            requests.forEach(req => {
+                const item = document.createElement('div');
+                item.className = `request-item`;
+                
+                const outDate = new Date(req.out_time).toLocaleString();
+                const inDate = new Date(req.in_time).toLocaleString();
+
+                const getBadge = (status) => `<span class="badge badge-${status}">${status}</span>`;
+
+                item.innerHTML = `
+                    <div class="request-header">
+                        <span class="request-purpose">${req.purpose}</span>
+                        ${getBadge(req.final_status)}
+                    </div>
+                    <div class="request-dates mt-3">
+                        <strong>Out:</strong> ${outDate} <br>
+                        <strong>In:</strong> ${inDate}
+                    </div>
+                    <div style="font-size: 0.8rem; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                        Adv: ${getBadge(req.adviser_status)} | 
+                        HOD: ${getBadge(req.hod_status)} | 
+                        Warden: ${getBadge(req.warden_status)}
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function checkActiveOutpass() {
+            // Check if there is any approved request that hasn't expired (is_outside could be false or true depending on if they left)
+            // Simplified rule: Disable form if an active pending/approved request exists without them returning
+            const { data: activeReqs } = await db
+                .from('outpass_requests')
+                .select('*')
+                .eq('student_id', currentStudentId)
+                .neq('final_status', 'rejected')
+                .order('created_at', { ascending: false });
+
+            const hasActiveOrPending = activeReqs && activeReqs.some(r => {
+                 // True if pending ANYWHERE
+                 if (r.final_status === 'pending') return true;
+                 
+                 // True if approved but not marked IN after being marked OUT
+                 if (r.final_status === 'approved' && !r.is_outside && new Date(r.in_time) > new Date()) {
+                     // hasn't left yet
+                     return true;
+                 }
+                 if (r.final_status === 'approved' && r.is_outside) {
+                     // has left, hasn't re-entered
+                     return true;
+                 }
+                 return false;
+            });
+
+            const btn = document.getElementById('submit-btn');
+            const msg = document.getElementById('form-msg');
+
+            if (hasActiveOrPending) {
+                btn.disabled = true;
+                msg.style.color = 'var(--warning)';
+                msg.textContent = "You already have an active or pending request. You cannot create a new one.";
+            }
+
+            // Generate QR for the most recent active approved outpass
+            const approvedReq = activeReqs?.find(r => r.final_status === 'approved' && (!r.is_outside || (r.is_outside && new Date(r.in_time) > new Date())));
+
+            if (approvedReq) {
+                document.getElementById('qr-section').classList.remove('hidden');
+                document.getElementById('qrcode').innerHTML = '';
+                new QRCode(document.getElementById("qrcode"), {
+                    text: approvedReq.id,
+                    width: 200,
+                    height: 200,
+                    colorDark : "#2b2d42",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            }
+        }
+    </script>
+</body>
+</html>

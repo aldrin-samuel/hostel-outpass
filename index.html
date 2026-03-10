@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Hostel Digital Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    
+    <div class="card animate-fade-in">
+        <h2 class="card-title">Hostel Digital Outpass System</h2>
+        <p class="text-center" style="margin-bottom: 2rem; color: var(--text-light);">Secure, multi-level approval outpass management.</p>
+        
+        <button id="google-login-btn" class="btn btn-primary">
+            <svg style="width:20px;height:20px;margin-right:10px" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z" />
+            </svg>
+            Sign in with Google
+        </button>
+        
+        <div id="loading" class="text-center hidden mt-3">
+            <p style="color: var(--primary-color); font-weight: 600;">Authenticating...</p>
+        </div>
+    </div>
+
+    <!-- Main Logic -->
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginBtn = document.getElementById('google-login-btn');
+            
+            loginBtn.addEventListener('click', async () => {
+                loginBtn.classList.add('hidden');
+                document.getElementById('loading').classList.remove('hidden');
+                await signInWithGoogle();
+            });
+            
+            // Wait a moment for Supabase to resolve the session on redirect
+            setTimeout(checkAuthStateAndRedirect, 1000);
+        });
+    </script>
+</body>
+</html>

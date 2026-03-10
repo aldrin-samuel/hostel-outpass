@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Role - Hostel Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    
+    <div class="card animate-fade-in" style="max-width: 500px; text-align: center;">
+        <h2 class="card-title">Welcome!</h2>
+        <p style="margin-bottom: 2rem; color: var(--text-light);">Are you registering as a Student or a Staff member?</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <a href="register.html" style="text-decoration: none;">
+                <button class="btn btn-primary" style="height: 60px; font-size: 1.1rem;">I am a Student</button>
+            </a>
+            <a href="register_staff.html" style="text-decoration: none;">
+                <button class="btn btn-secondary" style="height: 60px; font-size: 1.1rem; border: 2px solid var(--primary-color);">I am Staff</button>
+            </a>
+        </div>
+        
+        <button id="logout-btn" class="btn btn-secondary mt-3" style="border: none; margin-top: 2rem;">Cancel (Logout)</button>
+    </div>
+
+    <!-- Main Logic -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('logout-btn').addEventListener('click', signOut);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending Approval - Hostel Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    
+    <div class="card animate-fade-in" style="max-width: 500px; text-align: center;">
+        <h2 class="card-title" style="color: var(--warning);">Pending Approval</h2>
+        
+        <div style="margin: 2rem 0;">
+            <svg style="width: 60px; height: 60px; color: var(--warning);" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12.5,7H11V13L16.2,16.1L17,14.9L12.5,12.2V7Z" />
+            </svg>
+        </div>
+
+        <p style="margin-bottom: 2rem; color: var(--text-dark); font-weight: 600;">Your account is waiting for admin approval.</p>
+        <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 2rem;">Please contact the system administrator to activate your staff privileges.</p>
+        
+        <button id="logout-btn" class="btn btn-secondary mt-3">Logout</button>
+    </div>
+
+    <!-- Main Logic -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('logout-btn').addEventListener('click', signOut);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Registration - Hostel Outpass</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    
+    <div class="card animate-fade-in" style="max-width: 600px;">
+        <h2 class="card-title">Complete Your Profile</h2>
+        <p class="text-center" style="margin-bottom: 2rem; color: var(--text-light);">We need a few details before you can request an outpass.</p>
+        
+        <form id="registration-form">
+            <div class="form-group">
+                <label for="fullName">Full Name</label>
+                <input type="text" id="fullName" class="form-control" required placeholder="John Doe">
+            </div>
+
+            <div class="form-group">
+                <label for="registerNo">Register Number</label>
+                <input type="text" id="registerNo" class="form-control" required placeholder="e.g. 21CS101">
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" class="form-control" required placeholder="+91 9876543210">
+            </div>
+
+            <div class="form-group">
+                <label for="department">Department</label>
+                <select id="department" class="form-control" required>
+                    <option value="" disabled selected>Select Department</option>
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="adviser">Class Adviser</label>
+                <select id="adviser" class="form-control" required disabled>
+                    <option value="" disabled selected>Select Department First</option>
+                    <!-- Populated by JS based on Department -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="hostel">Hostel Name</label>
+                <select id="hostel" class="form-control" required>
+                    <option value="" disabled selected>Select Hostel</option>
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="roomNo">Room Number</label>
+                <input type="text" id="roomNo" class="form-control" required placeholder="e.g. A-210">
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-3" id="submit-btn">Complete Registration</button>
+            <p id="error-msg" class="text-center mt-3" style="color: var(--danger); font-weight: 600; display: none;"></p>
+        </form>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = await getCurrentUser();
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Pre-fill name from Google if available
+            if (user.user_metadata?.full_name) {
+                document.getElementById('fullName').value = user.user_metadata.full_name;
+            }
+
+            await loadRegistrationDropdowns();
+
+            // Handle Department Change to filter Advisers
+            document.getElementById('department').addEventListener('change', async (e) => {
+                await loadAdvisersForDepartment(e.target.value);
+            });
+
+            document.getElementById('registration-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const submitBtn = document.getElementById('submit-btn');
+                const errorMsg = document.getElementById('error-msg');
+                submitBtn.textContent = 'Registering...';
+                submitBtn.disabled = true;
+                errorMsg.style.display = 'none';
+
+                const studentData = {
+                    user_id: user.id,
+                    name: document.getElementById('fullName').value,
+                    register_number: document.getElementById('registerNo').value,
+                    phone: document.getElementById('phone').value,
+                    department_id: document.getElementById('department').value,
+                    adviser_id: document.getElementById('adviser').value,
+                    hostel_id: document.getElementById('hostel').value,
+                    room_number: document.getElementById('roomNo').value
+                };
+
+                const { data, error } = await registerStudent(studentData);
+                
+                if (error) {
+                    errorMsg.textContent = error.message || "Failed to register. Register number might already exist.";
+                    errorMsg.style.display = 'block';
+                    submitBtn.textContent = 'Complete Registration';
+                    submitBtn.disabled = false;
+                } else {
+                    window.location.href = 'student.html';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
