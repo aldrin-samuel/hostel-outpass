@@ -213,7 +213,30 @@ async function registerStaff(staffData) {
     }]);
 }
 
-// Ensure auth check runs on protected pages
+// --- Global Auth Initialization ---
+
+// 1. Listen for auth state changes (standard way to handle OAuth redirects)
+db.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        // Clean up fragment from URL if it exists
+        if (window.location.hash.includes('access_token')) {
+            window.history.replaceState(null, null, window.location.pathname);
+        }
+        checkAuthStateAndRedirect();
+    }
+});
+
+// 2. Initial check for index.html (ensure if session exists we move on)
+if (window.location.pathname.includes('index.html') || window.location.pathname === '/') {
+    setTimeout(async () => {
+        const user = await getCurrentUser();
+        if (user) {
+            checkAuthStateAndRedirect();
+        }
+    }, 500);
+}
+
+// 3. Ensure auth check runs on protected pages
 if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '/index.html') {
     // Wait for Supabase to initialize session
     setTimeout(async () => {

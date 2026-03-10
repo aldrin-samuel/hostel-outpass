@@ -38,9 +38,6 @@
                 document.getElementById('loading').classList.remove('hidden');
                 await signInWithGoogle();
             });
-            
-            // Wait a moment for Supabase to resolve the session on redirect
-            setTimeout(checkAuthStateAndRedirect, 1000);
         });
     </script>
 </body>
