@@ -13,7 +13,7 @@ async function signInWithGoogle() {
     const { data, error } = await db.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: window.location.origin + '/index.html'
+            redirectTo: window.location.origin
         }
     });
     if (error) {
@@ -215,41 +215,50 @@ async function registerStaff(staffData) {
 
 // --- Global Auth Initialization ---
 
-// 1. Listen for auth state changes (standard way to handle OAuth redirects)
-db.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        // Clean up fragment from URL if it exists
+// Initialize Auth
+(async () => {
+    // 1. Immediate Session Check (Handle page loads with existing session)
+    const { data: { session }, error } = await db.auth.getSession();
+    if (session) {
+        console.log("Session detected for user:", session.user.email);
+        
+        // Clean fragment if user landed with OAuth hash
         if (window.location.hash.includes('access_token')) {
+            console.log("Cleaning OAuth hash from URL");
             window.history.replaceState(null, null, window.location.pathname);
         }
+        
+        // Run redirect logic
         checkAuthStateAndRedirect();
     }
-});
 
-// 2. Initial check for index.html (ensure if session exists we move on)
-if (window.location.pathname.includes('index.html') || window.location.pathname === '/') {
-    setTimeout(async () => {
-        const user = await getCurrentUser();
-        if (user) {
+    // 2. Listen for future auth state changes
+    db.auth.onAuthStateChange((event, session) => {
+        console.log("Auth event triggered:", event);
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+            if (window.location.hash.includes('access_token')) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
             checkAuthStateAndRedirect();
         }
-    }, 500);
-}
+    });
 
-// 3. Ensure auth check runs on protected pages
-if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '/index.html') {
-    // Wait for Supabase to initialize session
-    setTimeout(async () => {
-        const user = await getCurrentUser();
+    // 3. Force redirect if unauthenticated on protected pages
+    if (!window.location.pathname.includes('index.html') && 
+        window.location.pathname !== '/' && 
+        window.location.pathname !== '/index.html') {
+        
+        const user = session ? session.user : await getCurrentUser();
         if (!user) {
+            console.log("Unauthorized access attempt. Redirecting to login.");
             window.location.href = 'index.html';
         } else {
-            // Also run state check if they are on pending
+            // State check for pending users
             if (window.location.pathname.includes('pending.html')) {
                 await checkAuthStateAndRedirect();
             }
 
-            // If on adviser page, double check they exist in advisers table
+            // Adviser auto-registration check
             if (window.location.pathname.includes('adviser.html')) {
                 const { data: userData } = await db.from('users').select('department_id').eq('id', user.id).single();
                 const { data: adviserData } = await db.from('advisers').select('id').eq('id', user.id).maybeSingle();
@@ -263,5 +272,5 @@ if (!window.location.pathname.includes('index.html') && window.location.pathname
                 }
             }
         }
-    }, 500);
-}
+    }
+})();
