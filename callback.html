@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authenticating...</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif;">
+        <p>Completing login, please wait...</p>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://xlorfxaknfntevtcmovd.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhsb3JmeGFrbmZudGV2dGNtb3ZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTUxMTMsImV4cCI6MjA4NTc3MTExM30.Hu6n9i8viKsOooAJBYTX6Ytu8upg4J0hTzfFk2lcUaM';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function handleCallback() {
+            try {
+                // For Supabase v2, getSession() automatically handles the URL hash 
+                // and sets the session in local storage.
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) throw error;
+                
+                if (session) {
+                    console.log("Login successful, redirecting...");
+                    // We need the logic from app.js to know where to go next.
+                    // Instead of duplicating it, let's just go to index.html 
+                    // which will now correctly find the session and run checkAuthStateAndRedirect.
+                    window.location.href = '../index.html';
+                } else {
+                    console.warn("No session found in callback.");
+                    window.location.href = '../index.html';
+                }
+            } catch (err) {
+                console.error("Callback error:", err);
+                alert("Authentication failed: " + err.message);
+                window.location.href = '../index.html';
+            }
+        }
+
+        handleCallback();
+    </script>
+</body>
+</html>
