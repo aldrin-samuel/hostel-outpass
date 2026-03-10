@@ -1,158 +1,121 @@
-console.log("App.js loading...");
+console.log("App.js starting...")
 
-const SUPABASE_URL = "https://xlorfxaknfntevtcmovd.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
+// ---------- SUPABASE CONFIG ----------
 
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = "https://xlorfxaknfntevtcmovd.supabase.co"
+const SUPABASE_ANON_KEY = "YOUR_ANON_KEY"
+
+const { createClient } = supabase
+
+const db = createClient(
+SUPABASE_URL,
+SUPABASE_ANON_KEY
+)
+
+console.log("Supabase client created")
 
 
-// ---------- AUTH INITIALIZATION ----------
+// ---------- GOOGLE LOGIN ----------
 
-async function initAuth() {
+async function signInWithGoogle(){
 
-    console.log("Initializing auth...");
+console.log("Starting Google login")
 
-    // This processes OAuth tokens if they exist in URL
-    const { data: { session } } = await db.auth.getSession();
+const { error } = await db.auth.signInWithOAuth({
 
-    if (session) {
-        console.log("Session found:", session.user.email);
-        await checkAuthStateAndRedirect();
-    } else {
-        console.log("No active session");
+provider:"google",
 
-        const protectedPages = [
-            "student.html",
-            "adviser.html",
-            "hod.html",
-            "warden.html",
-            "security.html"
-        ];
-
-        const currentPage = window.location.pathname.split("/").pop();
-
-        if (protectedPages.includes(currentPage)) {
-            window.location.href = "index.html";
-        }
-    }
-
+options:{
+redirectTo:window.location.origin
 }
 
-// Listen for auth events
-db.auth.onAuthStateChange(async (event, session) => {
+})
 
-    console.log("Auth event:", event);
+if(error){
 
-    if (event === "SIGNED_IN") {
+console.error("Login error:",error)
 
-        if (window.location.hash.includes("access_token")) {
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
+alert("Login failed")
 
-        await checkAuthStateAndRedirect();
-    }
-
-});
-
-
-// ---------- LOGIN ----------
-
-async function signInWithGoogle() {
-
-    const { error } = await db.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-            redirectTo: window.location.origin
-        }
-    });
-
-    if (error) {
-        alert("Login failed: " + error.message);
-    }
+}
 
 }
 
 
-// ---------- LOGOUT ----------
 
-async function signOut() {
-    await db.auth.signOut();
-    window.location.href = "index.html";
-}
+// ---------- AUTH STATE LISTENER ----------
 
+db.auth.onAuthStateChange((event,session)=>{
 
-// ---------- USER ----------
+console.log("Auth event:",event)
 
-async function getCurrentUser() {
+if(event==="SIGNED_IN"){
 
-    const { data: { session } } = await db.auth.getSession();
+console.log("User signed in:",session.user.email)
 
-    if (!session) return null;
+cleanUrl()
 
-    return session.user;
+redirectUser()
 
 }
 
+})
 
-// ---------- ROLE REDIRECT ----------
 
-async function checkAuthStateAndRedirect() {
 
-    const user = await getCurrentUser();
+// ---------- SESSION CHECK ----------
 
-    if (!user) return;
+async function checkSession(){
 
-    const { data: userData, error } = await db
-        .from("users")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+console.log("Checking session")
 
-    // User not registered yet
-    if (error) {
-        window.location.href = "role_selection.html";
-        return;
-    }
+const { data:{ session } } = await db.auth.getSession()
 
-    if (userData.status === "pending") {
-        window.location.href = "pending.html";
-        return;
-    }
+if(session){
 
-    let target = "";
+console.log("Existing session:",session.user.email)
 
-    switch (userData.role) {
+cleanUrl()
 
-        case "student":
-            target = "student.html";
-            break;
+redirectUser()
 
-        case "adviser":
-            target = "adviser.html";
-            break;
+}else{
 
-        case "hod":
-            target = "hod.html";
-            break;
+console.log("No session found")
 
-        case "warden":
-            target = "warden.html";
-            break;
-
-        case "security":
-            target = "security.html";
-            break;
-    }
-
-    const currentPage = window.location.pathname.split("/").pop();
-
-    if (target && currentPage !== target) {
-        window.location.href = target;
-    }
+}
 
 }
 
 
-// ---------- START AUTH ----------
 
-initAuth();
+// ---------- CLEAN OAUTH TOKEN ----------
+
+function cleanUrl(){
+
+if(window.location.hash.includes("access_token")){
+
+window.history.replaceState({},document.title,window.location.pathname)
+
+}
+
+}
+
+
+
+// ---------- REDIRECT ----------
+
+function redirectUser(){
+
+console.log("Redirecting user")
+
+// TEMPORARY redirect for testing
+window.location.href="student.html"
+
+}
+
+
+
+// ---------- INIT ----------
+
+checkSession()
