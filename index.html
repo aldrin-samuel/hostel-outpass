@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 
 <meta charset="UTF-8">
@@ -7,9 +8,49 @@
 
 <title>Hostel Digital Outpass</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Supabase Client -->
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-<link rel="stylesheet" href="styles.css">
+<style>
+
+body{
+font-family: Arial, sans-serif;
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+background:#f5f5f5;
+}
+
+.card{
+background:white;
+padding:40px;
+border-radius:10px;
+box-shadow:0 10px 30px rgba(0,0,0,0.1);
+text-align:center;
+width:320px;
+}
+
+button{
+padding:12px 20px;
+font-size:16px;
+border:none;
+border-radius:6px;
+background:#4285F4;
+color:white;
+cursor:pointer;
+}
+
+button:hover{
+background:#3367d6;
+}
+
+#loading{
+margin-top:20px;
+display:none;
+}
+
+</style>
 
 </head>
 
@@ -17,17 +58,15 @@
 
 <div class="card">
 
-<h2>Hostel Digital Outpass System</h2>
+<h2>Hostel Digital Outpass</h2>
 
-<p>Secure multi-level approval system</p>
+<p>Login using Google</p>
 
 <button id="google-login-btn">
-
 Sign in with Google
-
 </button>
 
-<div id="loading" style="display:none;">
+<div id="loading">
 Authenticating...
 </div>
 
@@ -38,21 +77,21 @@ Authenticating...
 
 <script>
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded",()=>{
 
-    const btn = document.getElementById("google-login-btn");
-    const loading = document.getElementById("loading");
+const btn = document.getElementById("google-login-btn")
+const loading = document.getElementById("loading")
 
-    btn.addEventListener("click", async () => {
+btn.addEventListener("click",async()=>{
 
-        btn.style.display = "none";
-        loading.style.display = "block";
+btn.style.display="none"
+loading.style.display="block"
 
-        await signInWithGoogle();
+await signInWithGoogle()
 
-    });
+})
 
-});
+})
 
 </script>
 
