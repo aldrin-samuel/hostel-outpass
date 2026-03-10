@@ -1,3 +1,4 @@
+// --- Supabase Configuration ---
 console.log("App.js: Loading configuration...");
 const SUPABASE_URL = 'https://xlorfxaknfntevtcmovd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhsb3JmeGFrbmZudGV2dGNtb3ZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTUxMTMsImV4cCI6MjA4NTc3MTExM30.Hu6n9i8viKsOooAJBYTX6Ytu8upg4J0hTzfFk2lcUaM';
@@ -13,6 +14,48 @@ try {
 } catch (err) {
     console.error("App.js: Initialization error:", err.message);
 }
+
+// --- Global Auth Initialization ---
+;(async () => {
+    console.log("App.js: Running Global Auth Init...");
+    try {
+        // 1. Set up listener (Standard callback handling)
+        db.auth.onAuthStateChange((event, session) => {
+            console.log("App.js: Auth event triggered:", event);
+            if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+                if (window.location.hash.includes('access_token')) {
+                    console.log("App.js: Detected OAuth hash, cleaning up.");
+                    window.history.replaceState(null, null, window.location.pathname);
+                }
+                checkAuthStateAndRedirect();
+            }
+        });
+
+        // 2. Immediate Session detection (Crucial for page loads)
+        const { data: { session } } = await db.auth.getSession();
+        if (session) {
+            console.log("App.js: Active session for:", session.user.email);
+            if (window.location.hash.includes('access_token')) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
+            // Trigger role-based redirection
+            checkAuthStateAndRedirect();
+        } else {
+            console.log("App.js: No session found.");
+            // 3. Force redirect if unauthenticated on protected pages
+            const isProtectedPage = !window.location.pathname.includes('index.html') && 
+                                    window.location.pathname !== '/' && 
+                                    window.location.pathname !== '/index.html';
+            
+            if (isProtectedPage) {
+                console.log("App.js: Unauthorized access. Redirecting to login.");
+                window.location.href = 'index.html';
+            }
+        }
+    } catch (err) {
+        console.error("App.js: Auth Init error:", err);
+    }
+})();
 
 // --- Auth Helpers ---
 
@@ -220,43 +263,3 @@ async function registerStaff(staffData) {
     }]);
 }
 
-// --- Global Auth Initialization ---
-
-// Initialize Auth
-;(async () => {
-    console.log("App.js: Auth IIFE triggering...");
-    try {
-        // 1. Set up the listener first
-        db.auth.onAuthStateChange((event, session) => {
-            console.log("App.js: Auth event:", event);
-            if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-                if (window.location.hash.includes('access_token')) {
-                    window.history.replaceState(null, null, window.location.pathname);
-                }
-                checkAuthStateAndRedirect();
-            }
-        });
-
-        // 2. Immediate Session Check
-        const { data: { session } } = await db.auth.getSession();
-        if (session) {
-            console.log("App.js: Active session for:", session.user.email);
-            if (window.location.hash.includes('access_token')) {
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-            checkAuthStateAndRedirect();
-        } else {
-            console.log("App.js: No session found on load.");
-            
-            // 3. Force redirect if unauthenticated on protected pages
-            if (!window.location.pathname.includes('index.html') && 
-                window.location.pathname !== '/' && 
-                window.location.pathname !== '/index.html') {
-                console.log("App.js: Unauthorized access. Redirecting to login.");
-                window.location.href = 'index.html';
-            }
-        }
-    } catch (err) {
-        console.error("App.js: Auth init error:", err);
-    }
-})();
