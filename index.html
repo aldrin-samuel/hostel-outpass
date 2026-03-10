@@ -28,9 +28,11 @@
     </div>
 
     <!-- Main Logic -->
+    <script>console.log("Index.html: Page rendering...");</script>
     <script src="app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            console.log("Index.html: DOMContentLoaded triggered.");
             const loginBtn = document.getElementById('google-login-btn');
             
             loginBtn.addEventListener('click', async () => {

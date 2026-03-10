@@ -1,11 +1,18 @@
-// --- Supabase Configuration ---
-// These values are now managed in the .env file.
-// If using a build tool, they will be injected. 
-// For vanilla JS, you can also define these in a separate config.js or keep them here.
+console.log("App.js: Loading configuration...");
 const SUPABASE_URL = 'https://xlorfxaknfntevtcmovd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhsb3JmeGFrbmZudGV2dGNtb3ZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTUxMTMsImV4cCI6MjA4NTc3MTExM30.Hu6n9i8viKsOooAJBYTX6Ytu8upg4J0hTzfFk2lcUaM';
 
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let db;
+try {
+    const lib = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+    if (!lib) {
+        throw new Error("Supabase library not found! Check your script tags in index.html.");
+    }
+    db = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("App.js: Supabase client initialized.");
+} catch (err) {
+    console.error("App.js: Initialization error:", err.message);
+}
 
 // --- Auth Helpers ---
 
@@ -13,7 +20,7 @@ async function signInWithGoogle() {
     const { data, error } = await db.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: window.location.origin + '/auth/callback.html'
+            redirectTo: window.location.origin
         }
     });
     if (error) {
@@ -216,61 +223,40 @@ async function registerStaff(staffData) {
 // --- Global Auth Initialization ---
 
 // Initialize Auth
-(async () => {
-    // 1. Immediate Session Check (Handle page loads with existing session)
-    const { data: { session }, error } = await db.auth.getSession();
-    if (session) {
-        console.log("Session detected for user:", session.user.email);
-        
-        // Clean fragment if user landed with OAuth hash
-        if (window.location.hash.includes('access_token')) {
-            console.log("Cleaning OAuth hash from URL");
-            window.history.replaceState(null, null, window.location.pathname);
-        }
-        
-        // Run redirect logic
-        checkAuthStateAndRedirect();
-    }
+;(async () => {
+    console.log("App.js: Auth IIFE triggering...");
+    try {
+        // 1. Set up the listener first
+        db.auth.onAuthStateChange((event, session) => {
+            console.log("App.js: Auth event:", event);
+            if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+                if (window.location.hash.includes('access_token')) {
+                    window.history.replaceState(null, null, window.location.pathname);
+                }
+                checkAuthStateAndRedirect();
+            }
+        });
 
-    // 2. Listen for future auth state changes
-    db.auth.onAuthStateChange((event, session) => {
-        console.log("Auth event triggered:", event);
-        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        // 2. Immediate Session Check
+        const { data: { session } } = await db.auth.getSession();
+        if (session) {
+            console.log("App.js: Active session for:", session.user.email);
             if (window.location.hash.includes('access_token')) {
                 window.history.replaceState(null, null, window.location.pathname);
             }
             checkAuthStateAndRedirect();
-        }
-    });
-
-    // 3. Force redirect if unauthenticated on protected pages
-    if (!window.location.pathname.includes('index.html') && 
-        window.location.pathname !== '/' && 
-        window.location.pathname !== '/index.html') {
-        
-        const user = session ? session.user : await getCurrentUser();
-        if (!user) {
-            console.log("Unauthorized access attempt. Redirecting to login.");
-            window.location.href = 'index.html';
         } else {
-            // State check for pending users
-            if (window.location.pathname.includes('pending.html')) {
-                await checkAuthStateAndRedirect();
-            }
-
-            // Adviser auto-registration check
-            if (window.location.pathname.includes('adviser.html')) {
-                const { data: userData } = await db.from('users').select('department_id').eq('id', user.id).single();
-                const { data: adviserData } = await db.from('advisers').select('id').eq('id', user.id).maybeSingle();
-                
-                if (!adviserData && userData) {
-                    await db.from('advisers').insert([{
-                        id: user.id,
-                        name: user.user_metadata?.full_name || user.email || 'Advisor',
-                        department_id: userData.department_id
-                    }]);
-                }
+            console.log("App.js: No session found on load.");
+            
+            // 3. Force redirect if unauthenticated on protected pages
+            if (!window.location.pathname.includes('index.html') && 
+                window.location.pathname !== '/' && 
+                window.location.pathname !== '/index.html') {
+                console.log("App.js: Unauthorized access. Redirecting to login.");
+                window.location.href = 'index.html';
             }
         }
+    } catch (err) {
+        console.error("App.js: Auth init error:", err);
     }
 })();
