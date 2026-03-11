@@ -73,6 +73,8 @@
     <script>
         let currentUser = null;
         let currentStudentId = null;
+        let currentAdviserUserId = null;
+        let currentWardenUserId = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('logout-btn').addEventListener('click', signOut);
@@ -81,15 +83,17 @@
             if (!user) return;
             currentUser = user;
 
-            // Fetch Student Profile ID
+            // Fetch Student Profile ID + routing targets
             const { data: studentData, error } = await db
                 .from('students')
-                .select('id')
+                .select('id, adviser_id, warden_id')
                 .eq('user_id', user.id)
                 .single();
 
             if (studentData) {
                 currentStudentId = studentData.id;
+                currentAdviserUserId = studentData.adviser_id;
+                currentWardenUserId = studentData.warden_id;
                 await fetchHistory();
                 await checkActiveOutpass();
             } else {
@@ -108,6 +112,8 @@
 
                 const payload = {
                     student_id: currentStudentId,
+                    adviser_id: currentAdviserUserId,
+                    warden_id: currentWardenUserId,
                     purpose: document.getElementById('purpose').value,
                     out_time: new Date(document.getElementById('outTime').value).toISOString(),
                     in_time: new Date(document.getElementById('inTime').value).toISOString()
@@ -156,19 +162,21 @@
                 const inDate = new Date(req.in_time).toLocaleString();
 
                 const getBadge = (status) => `<span class="badge badge-${status}">${status}</span>`;
+                
+                const isLate = new Date() > new Date(req.in_time) && req.final_status !== 'completed' && req.final_status !== 'rejected';
 
                 item.innerHTML = `
                     <div class="request-header">
                         <span class="request-purpose">${req.purpose}</span>
                         ${getBadge(req.final_status)}
+                        ${isLate ? '<span class="badge" style="background:var(--danger)">LATE</span>' : ''}
                     </div>
                     <div class="request-dates mt-3">
                         <strong>Out:</strong> ${outDate} <br>
                         <strong>In:</strong> ${inDate}
                     </div>
                     <div style="font-size: 0.8rem; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
-                        Adv: ${getBadge(req.adviser_status)} | 
-                        HOD: ${getBadge(req.hod_status)} | 
+                        Adviser: ${getBadge(req.adviser_status)} | 
                         Warden: ${getBadge(req.warden_status)}
                     </div>
                 `;

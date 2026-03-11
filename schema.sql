@@ -106,3 +106,75 @@ INSERT INTO public.departments (name) VALUES
 
 -- Note: You'll need to create user accounts via Supabase Auth first, 
 -- then link them here as HODs and Advisers.
+
+-- =====================================================
+-- MIGRATION: Outpass Feature Extensions
+-- Run the following in Supabase SQL Editor if updating an existing DB
+-- =====================================================
+
+-- 1. Add warden_id to students
+ALTER TABLE public.students
+  ADD COLUMN IF NOT EXISTS warden_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+
+-- 1b. Add name to users table for display purposes (wardens, advisers, etc.)
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS name TEXT;
+
+-- 2. Add adviser_id, warden_id, returned_to_campus to outpass_requests
+ALTER TABLE public.outpass_requests
+  ADD COLUMN IF NOT EXISTS adviser_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS warden_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS returned_to_campus BOOLEAN DEFAULT false;
+
+-- 3. Create alerts table for late-return notifications
+CREATE TABLE IF NOT EXISTS public.alerts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_id UUID,  -- not a FK since request may be deleted
+    student_name TEXT,
+    message TEXT,
+    adviser_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    warden_id  UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_read BOOLEAN DEFAULT false
+);
+
+ALTER TABLE public.alerts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "Enable all for authenticated" ON public.alerts FOR ALL TO authenticated USING (true);
+
+-- 4. Enable pg_cron extension (may need superuser — enable via Dashboard > Extensions)
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- 5. Postgres function to check late returns and trigger alerts
+CREATE OR REPLACE FUNCTION check_late_returns()
+RETURNS void AS $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT 
+            o.id, o.adviser_id, o.warden_id,
+            s.name as student_name, o.in_time
+        FROM outpass_requests o
+        JOIN students s ON s.id = o.student_id
+        WHERE o.in_time < NOW()
+          AND o.returned_to_campus = false
+          AND o.final_status = 'approved'
+    LOOP
+        -- Insert an alert for the adviser and warden
+        INSERT INTO public.alerts (request_id, student_name, message, adviser_id, warden_id)
+        VALUES (
+            r.id,
+            r.student_name,
+            'LATE RETURN: ' || r.student_name || ' has NOT returned. Expected at ' || to_char(r.in_time AT TIME ZONE 'UTC', 'DD Mon YYYY HH24:MI'),
+            r.adviser_id,
+            r.warden_id
+        );
+
+        -- Delete the outpass request
+        DELETE FROM public.outpass_requests WHERE id = r.id;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 6. Schedule cron job (run after enabling pg_cron)
+-- SELECT cron.schedule('check-late-returns', '*/5 * * * *', 'SELECT check_late_returns()');

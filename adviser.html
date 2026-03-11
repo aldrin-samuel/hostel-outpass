@@ -38,69 +38,16 @@
 
             const user = await getCurrentUser();
             if (!user) return;
-
-            // Fetch Adviser Profile ID
-            const { data: adviserData, error } = await db
-                .from('users')
-                .select('id')
-                .eq('id', user.id)
-                .single();
-
-            if (adviserData) {
-                currentAdviserId = adviserData.id;
-                await fetchPendingRequests();
-            } else {
-                alert("Adviser profile not found.");
-                signOut();
-            }
+            currentAdviserId = user.id;
+            await fetchPendingRequests();
+            await fetchAlerts();
         });
 
         async function fetchPendingRequests() {
             const list = document.getElementById('requests-list');
             
-            // Fetch requests where student's adviser is the current user AND adviser_status is pending
+            // Direct filter using adviser_id stored on each request
             const { data: requests, error } = await db
-                .from('outpass_requests')
-                .select(`
-                    id, 
-                    purpose, 
-                    out_time, 
-                    in_time, 
-                    created_at,
-                    student:students ( name, register_number, room_number, phone ),
-                    adviser_status
-                `)
-                .eq('adviser_status', 'pending')
-                // A bit of a hack or requires a view: Since Supabase JS client doesn't 
-                // fully support filtering by nested parent dynamically in one simple query without foreign key hints nicely,
-                // we'll filter on the client side for MVP or use an edge function. 
-                // But let's fetch students first or do an inner join approach.
-                .order('created_at', { ascending: true });
-
-            if (error) {
-                list.innerHTML = `<p class="text-center" style="color: var(--danger);">Error loading requests</p>`;
-                return;
-            }
-
-            // Client-side mapping to verify it belongs to this adviser. 
-            // In a real app, use a secure Postgres View or inner join.
-            const { data: myStudents } = await db
-                .from('students')
-                .select('id')
-                .eq('adviser_id', currentAdviserId);
-                
-            const myStudentIds = myStudents ? myStudents.map(s => s.id) : [];
-
-            // Supabase allows filtering by exact nested column if we know it, but let's manual filter:
-            // Actually, we could have just fetched `outpass_requests` and checked `student_id in myStudentIds`.
-            
-            // Re-fetch using `in` filter
-            if (myStudentIds.length === 0) {
-                list.innerHTML = `<p class="text-center" style="color: var(--text-light);">No students assigned to you.</p>`;
-                return;
-            }
-
-            const { data: filteredRequests, error: filterErr } = await db
                 .from('outpass_requests')
                 .select(`
                     id, 
@@ -110,17 +57,23 @@
                     created_at,
                     student:students ( name, register_number, room_number, phone )
                 `)
-                .in('student_id', myStudentIds)
+                .eq('adviser_id', currentAdviserId)
                 .eq('adviser_status', 'pending')
+                .eq('final_status', 'pending')
                 .order('created_at', { ascending: true });
 
-            if (!filteredRequests || filteredRequests.length === 0) {
+            if (error) {
+                list.innerHTML = `<p class="text-center" style="color: var(--danger);">Error loading requests</p>`;
+                return;
+            }
+
+            if (!requests || requests.length === 0) {
                 list.innerHTML = `<p class="text-center" style="color: var(--text-light);">No pending requests.</p>`;
                 return;
             }
 
             list.innerHTML = '';
-            filteredRequests.forEach(req => {
+            requests.forEach(req => {
                 const item = document.createElement('div');
                 item.className = `request-item`;
                 
@@ -151,12 +104,37 @@
             });
         }
 
+        async function fetchAlerts() {
+            const alerts = await loadAlerts(currentAdviserId, 'adviser');
+            if (alerts.length === 0) return;
+
+            // Show alerts section
+            const alertsHtml = alerts.map(a => `
+                <div class="request-item" style="border-left: 4px solid var(--danger);">
+                    <div style="font-weight: 600; color: var(--danger);">⚠️ Late Return Alert</div>
+                    <div style="margin-top: 6px;">${a.message}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-light); margin-top: 4px;">${new Date(a.created_at).toLocaleString()}</div>
+                    <button class="btn btn-secondary" style="margin-top: 8px; padding: 4px 12px; font-size: 0.8rem;" onclick="markAlertRead('${a.id}', this)">Dismiss</button>
+                </div>
+            `).join('');
+
+            const alertSection = document.createElement('div');
+            alertSection.className = 'card animate-fade-in';
+            alertSection.style = 'max-width:1000px;margin:0 auto 1.5rem auto;width:100%;border:2px solid var(--danger);';
+            alertSection.innerHTML = `<h3 style="color:var(--danger);margin-bottom:1rem;">🔔 Late Return Alerts (${alerts.length})</h3><div>${alertsHtml}</div>`;
+
+            document.querySelector('.dashboard-container').prepend(alertSection);
+        }
+
+        async function markAlertRead(alertId, btn) {
+            await db.from('alerts').update({ is_read: true }).eq('id', alertId);
+            btn.closest('.request-item').remove();
+        }
+
         async function updateStatus(requestId, status) {
             if (!confirm(`Are you sure you want to ${status} this request?`)) return;
 
-            const payload = {
-                adviser_status: status
-            };
+            const payload = { adviser_status: status };
             
             if (status === 'rejected') {
                 payload.final_status = 'rejected';
@@ -170,7 +148,7 @@
             if (error) {
                 alert('Error updating request: ' + error.message);
             } else {
-                await fetchPendingRequests(); // refresh list
+                await fetchPendingRequests();
             }
         }
     </script>

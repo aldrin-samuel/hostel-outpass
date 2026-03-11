@@ -35,8 +35,8 @@
                 <div id="request-info" style="margin-bottom: 1rem;"></div>
                 
                 <div id="security-actions" class="request-actions hidden" style="justify-content: center;">
-                    <button id="btn-out" class="btn btn-warning" style="background-color: var(--warning); color: #fff; width: auto;" onclick="markStatus(true)">Mark OUT</button>
-                    <button id="btn-in" class="btn btn-success" style="width: auto;" onclick="markStatus(false)">Mark IN</button>
+                    <button id="btn-out" class="btn btn-warning" style="background-color: var(--warning); color: #fff; width: auto;" onclick="markStatus('out')">Mark OUT</button>
+                    <button id="btn-returned" class="btn btn-success" style="width: auto;" onclick="markStatus('returned')">✅ Student Returned</button>
                 </div>
                 
                 <p id="action-msg" class="text-center mt-3" style="font-weight: 600;"></p>
@@ -124,7 +124,8 @@
                 <strong>Approved Out:</strong> ${new Date(req.out_time).toLocaleString()} <br>
                 <strong>Expected In:</strong> ${new Date(req.in_time).toLocaleString()} <br>
                 <strong>Status:</strong> ${req.final_status.toUpperCase()} <br>
-                <strong>Current State:</strong> ${req.is_outside ? 'OUTSIDE' : 'INSIDE'}
+                <strong>Current State:</strong> ${req.is_outside ? 'OUTSIDE' : 'INSIDE'} <br>
+                <strong>Returned:</strong> ${req.returned_to_campus ? '✅ Yes' : '❌ Not yet'}
             `;
 
             if (req.final_status !== 'approved') {
@@ -135,22 +136,19 @@
                 document.getElementById('security-actions').classList.remove('hidden');
 
                 if (req.is_outside) {
-                    // Already outside, can only Mark IN
+                    // Already outside — show Student Returned button only
                     document.getElementById('btn-out').style.display = 'none';
-                    document.getElementById('btn-in').style.display = 'inline-block';
+                    document.getElementById('btn-returned').style.display = 'inline-block';
                 } else {
-                    // Inside, can only Mark OUT
+                    // Inside: check if can go out
                     document.getElementById('btn-out').style.display = 'inline-block';
-                    document.getElementById('btn-in').style.display = 'none';
+                    document.getElementById('btn-returned').style.display = 'none';
                     
-                    // Optional Check: Is it too late to go out? Or has it already been completed?
-                    const now = new Date();
-                    const inTime = new Date(req.in_time);
-                    if (req.final_status === 'completed') {
+                    if (req.final_status === 'completed' || req.returned_to_campus) {
                         document.getElementById('action-msg').textContent = `Outpass has already been used and completed.`;
                         document.getElementById('action-msg').style.color = 'var(--danger)';
                         document.getElementById('security-actions').classList.add('hidden');
-                    } else if (now > inTime) {
+                    } else if (new Date() > new Date(req.in_time)) {
                         document.getElementById('action-msg').textContent = `WARNING: Expected Return Time has already passed.`;
                         document.getElementById('action-msg').style.color = 'var(--warning)';
                     }
@@ -162,13 +160,21 @@
             // handle scan failure, usually better to ignore and keep scanning
         }
 
-        async function markStatus(isOut) {
+        async function markStatus(action) {
             if (!currentScannedRequestId) return;
 
-            const updatePayload = { is_outside: isOut };
-            if (!isOut) {
-                // If they are coming back IN, the outpass is now completed and cannot be reused
-                updatePayload.final_status = 'completed';
+            let updatePayload = {};
+
+            if (action === 'out') {
+                // Student going out
+                updatePayload = { is_outside: true };
+            } else if (action === 'returned') {
+                // Student returned to campus — mark safe, prevent late-return alert
+                updatePayload = {
+                    is_outside: false,
+                    returned_to_campus: true,
+                    final_status: 'completed'
+                };
             }
 
             const { error } = await db
@@ -180,7 +186,8 @@
                 alert("Error updating status: " + error.message);
             } else {
                 document.getElementById('security-actions').classList.add('hidden');
-                document.getElementById('action-msg').textContent = `Successfully marked ${isOut ? 'OUT' : 'IN'}.`;
+                document.getElementById('action-msg').textContent = 
+                    action === 'out' ? '✅ Marked as OUT. Student has exited.' : '✅ Student Returned. Outpass completed.';
                 document.getElementById('action-msg').style.color = 'var(--success)';
             }
         }

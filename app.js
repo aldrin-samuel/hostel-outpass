@@ -214,15 +214,17 @@ async function loadAdvisersForDepartment(departmentId) {
 
     if (!departmentId) return;
 
+    // Fetch advisers filtered by department. 
+    // The advisers table stores id = users.id, so we join to get name and user UUID together.
     const { data: advisers } = await db
         .from('advisers')
-        .select('id, name')
+        .select('id, name, department_id')
         .eq('department_id', departmentId);
 
     if (advisers && advisers.length > 0) {
         advisers.forEach(a => {
             const option = document.createElement('option');
-            option.value = a.id;
+            option.value = a.id;   // advisers.id === users.id (UUID)
             option.textContent = a.name;
             adviserSelect.appendChild(option);
         });
@@ -240,6 +242,7 @@ async function registerStudent(studentData) {
     const { error: userError } = await db.from('users').insert([{
         id: studentData.user_id,
         email: user.email,
+        name: studentData.name,
         role: 'student',
         status: 'approved',
         department_id: studentData.department_id
@@ -247,18 +250,56 @@ async function registerStudent(studentData) {
 
     if (userError) return { error: userError };
 
-    // 2. Insert into students table
+    // 2. Insert into students table (now includes warden_id)
     return await db.from('students').insert([studentData]);
+}
+
+async function loadWardens() {
+    // Fetch approved wardens from users table
+    const { data: wardens } = await db
+        .from('users')
+        .select('id, name, email')
+        .eq('role', 'warden')
+        .eq('status', 'approved');
+
+    const wardenSelect = document.getElementById('warden');
+    if (!wardens || !wardenSelect) return;
+
+    if (wardens.length === 0) {
+        wardenSelect.innerHTML = '<option value="" disabled selected>No Wardens available</option>';
+        return;
+    }
+
+    wardens.forEach(w => {
+        const option = document.createElement('option');
+        option.value = w.id;  // user UUID
+        option.textContent = w.name || w.email;  // show name, fallback to email
+        wardenSelect.appendChild(option);
+    });
+}
+
+async function loadAlerts(targetId, role) {
+    // role: 'adviser' | 'warden'
+    const column = role === 'adviser' ? 'adviser_id' : 'warden_id';
+    const { data: alerts } = await db
+        .from('alerts')
+        .select('*')
+        .eq(column, targetId)
+        .eq('is_read', false)
+        .order('created_at', { ascending: false });
+
+    return alerts || [];
 }
 
 async function registerStaff(staffData) {
     const user = await getCurrentUser();
     if(!user) return { error: { message: "Not authenticated" } };
 
-    // Insert into users table with pending status
+    // Insert into users table with pending status, including display name
     return await db.from('users').insert([{
         id: staffData.user_id,
         email: user.email,
+        name: staffData.name || user.user_metadata?.full_name || user.email,
         role: staffData.role,
         status: 'pending',
         department_id: staffData.department_id || null

@@ -31,22 +31,22 @@
     <!-- Main Logic -->
     <script src="app.js"></script>
     <script>
+        let currentWardenId = null;
+
         document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('logout-btn').addEventListener('click', signOut);
 
             const user = await getCurrentUser();
             if (!user) return;
-
-            // Wardens can see requests from all students basically, 
-            // since they run the hostel. We can filter by hostel if needed, 
-            // but for MVP, we just take all requests where `hod_status = 'approved'` and `warden_status = 'pending'`.
+            currentWardenId = user.id;
             await fetchPendingRequests();
+            await fetchAlerts();
         });
 
         async function fetchPendingRequests() {
             const list = document.getElementById('requests-list');
             
-            // Warden sees all requests that are approved by HOD, but pending Warden
+            // Warden sees requests assigned to THEM specifically, where adviser has approved
             const { data: requests, error } = await db
                 .from('outpass_requests')
                 .select(`
@@ -56,10 +56,11 @@
                     in_time, 
                     created_at,
                     student:students ( name, register_number, room_number, phone, hostel:hostels(name) ),
-                    hod_status,
+                    adviser_status,
                     warden_status
                 `)
-                .eq('hod_status', 'approved')
+                .eq('warden_id', currentWardenId)
+                .eq('adviser_status', 'approved')
                 .eq('warden_status', 'pending')
                 .eq('final_status', 'pending')
                 .order('created_at', { ascending: true });
@@ -107,12 +108,35 @@
             });
         }
 
+        async function fetchAlerts() {
+            const alerts = await loadAlerts(currentWardenId, 'warden');
+            if (alerts.length === 0) return;
+
+            const alertsHtml = alerts.map(a => `
+                <div class="request-item" style="border-left: 4px solid var(--danger);">
+                    <div style="font-weight: 600; color: var(--danger);">⚠️ Late Return Alert</div>
+                    <div style="margin-top: 6px;">${a.message}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-light); margin-top: 4px;">${new Date(a.created_at).toLocaleString()}</div>
+                    <button class="btn btn-secondary" style="margin-top: 8px; padding: 4px 12px; font-size: 0.8rem;" onclick="markAlertRead('${a.id}', this)">Dismiss</button>
+                </div>
+            `).join('');
+
+            const alertSection = document.createElement('div');
+            alertSection.className = 'card animate-fade-in';
+            alertSection.style = 'max-width:1000px;margin:0 auto 1.5rem auto;width:100%;border:2px solid var(--danger);';
+            alertSection.innerHTML = `<h3 style="color:var(--danger);margin-bottom:1rem;">🔔 Late Return Alerts (${alerts.length})</h3><div>${alertsHtml}</div>`;
+            document.querySelector('.dashboard-container').prepend(alertSection);
+        }
+
+        async function markAlertRead(alertId, btn) {
+            await db.from('alerts').update({ is_read: true }).eq('id', alertId);
+            btn.closest('.request-item').remove();
+        }
+
         async function updateStatus(requestId, status) {
             if (!confirm(`Are you sure you want to ${status} this request? This is the final decision.`)) return;
 
-            const payload = {
-                warden_status: status,
-            };
+            const payload = { warden_status: status };
             if (status === 'approved') payload.final_status = 'approved';
             if (status === 'rejected') payload.final_status = 'rejected';
             
@@ -124,7 +148,7 @@
             if (error) {
                 alert('Error updating request: ' + error.message);
             } else {
-                await fetchPendingRequests(); // refresh list
+                await fetchPendingRequests();
             }
         }
     </script>
