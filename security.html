@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Security Scanner - Hostel Outpass</title>
     <link rel="stylesheet" href="styles.css">
-    
+
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- HTML5 QRCode -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
+
 <body>
-    
+
     <div class="header">
         <div class="header-title">Gate Security Scanner</div>
         <div class="nav-links">
@@ -21,24 +23,29 @@
     </div>
 
     <div class="dashboard-container" style="grid-template-columns: 1fr;">
-        
+
         <div class="card animate-fade-in" style="max-width: 600px; margin: 0 auto; width: 100%;">
             <h3 style="color: var(--primary-color); text-align: center; margin-bottom: 1.5rem;">Scan Outpass QR</h3>
-            
-            <div id="reader" style="width: 100%; border-radius: var(--border-radius); overflow: hidden; margin-bottom: 1.5rem;"></div>
-            
+
+            <div id="reader"
+                style="width: 100%; border-radius: var(--border-radius); overflow: hidden; margin-bottom: 1.5rem;">
+            </div>
+
             <div id="scan-result" class="hidden">
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #eee;">
-                
+
                 <h4 style="color: var(--primary-color); margin-bottom: 1rem;">Outpass Details</h4>
                 <div id="student-info" style="margin-bottom: 1rem;"></div>
                 <div id="request-info" style="margin-bottom: 1rem;"></div>
-                
+
                 <div id="security-actions" class="request-actions hidden" style="justify-content: center;">
-                    <button id="btn-out" class="btn btn-warning" style="background-color: var(--warning); color: #fff; width: auto;" onclick="markStatus('out')">Mark OUT</button>
-                    <button id="btn-returned" class="btn btn-success" style="width: auto;" onclick="markStatus('returned')">✅ Student Returned</button>
+                    <button id="btn-out" class="btn btn-warning"
+                        style="background-color: var(--warning); color: #fff; width: auto;"
+                        onclick="markStatus('out')">Mark OUT</button>
+                    <button id="btn-returned" class="btn btn-success" style="width: auto;"
+                        onclick="markStatus('returned')">✅ Student Returned</button>
                 </div>
-                
+
                 <p id="action-msg" class="text-center mt-3" style="font-weight: 600;"></p>
 
                 <div class="text-center mt-3">
@@ -46,7 +53,7 @@
                 </div>
             </div>
         </div>
-        
+
     </div>
 
     <!-- Main Logic -->
@@ -64,7 +71,7 @@
             // Initialize Scanner
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader",
-                { fps: 10, qrbox: {width: 250, height: 250} },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
                 /* verbose= */ false
             );
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
@@ -75,18 +82,18 @@
             if (html5QrcodeScanner) {
                 try {
                     await html5QrcodeScanner.clear();
-                } catch(e) {
+                } catch (e) {
                     console.log("Scanner clear error", e);
                 }
             }
-            
+
             // Expected that decodedText is the UUID of the outpass_requests
             currentScannedRequestId = decodedText;
 
             document.getElementById('scan-result').classList.remove('hidden');
             document.getElementById('action-msg').textContent = 'Fetching details...';
             document.getElementById('action-msg').style.color = 'var(--text-light)';
-            
+
             document.getElementById('security-actions').classList.add('hidden');
 
             // Fetch Request
@@ -99,6 +106,7 @@
                     in_time, 
                     final_status,
                     is_outside,
+                    returned_to_campus,
                     student:students ( name, register_number, room_number, phone, hostel:hostels(name) )
                 `)
                 .eq('id', decodedText)
@@ -111,7 +119,7 @@
             }
 
             const hostelName = req.student.hostel ? req.student.hostel.name : 'Unknown Hostel';
-            
+
             document.getElementById('student-info').innerHTML = `
                 <strong>Name:</strong> ${req.student.name} <br>
                 <strong>Register No:</strong> ${req.student.register_number} <br>
@@ -143,7 +151,7 @@
                     // Inside: check if can go out
                     document.getElementById('btn-out').style.display = 'inline-block';
                     document.getElementById('btn-returned').style.display = 'none';
-                    
+
                     if (req.final_status === 'completed' || req.returned_to_campus) {
                         document.getElementById('action-msg').textContent = `Outpass has already been used and completed.`;
                         document.getElementById('action-msg').style.color = 'var(--danger)';
@@ -181,12 +189,12 @@
                 .from('outpass_requests')
                 .update(updatePayload)
                 .eq('id', currentScannedRequestId);
-            
+
             if (error) {
                 alert("Error updating status: " + error.message);
             } else {
                 document.getElementById('security-actions').classList.add('hidden');
-                document.getElementById('action-msg').textContent = 
+                document.getElementById('action-msg').textContent =
                     action === 'out' ? '✅ Marked as OUT. Student has exited.' : '✅ Student Returned. Outpass completed.';
                 document.getElementById('action-msg').style.color = 'var(--success)';
             }
@@ -195,15 +203,16 @@
         function resetScanner() {
             document.getElementById('scan-result').classList.add('hidden');
             currentScannedRequestId = null;
-            
+
             // Re-initialize Scanner
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader",
-                { fps: 10, qrbox: {width: 250, height: 250} },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
                 false
             );
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
     </script>
 </body>
+
 </html>
