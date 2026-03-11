@@ -185,30 +185,17 @@
         }
 
         async function checkActiveOutpass() {
-            // Check if there is any approved request that hasn't expired (is_outside could be false or true depending on if they left)
-            // Simplified rule: Disable form if an active pending/approved request exists without them returning
+            // Check if there is any approved request that hasn't been completed/returned
             const { data: activeReqs } = await db
                 .from('outpass_requests')
                 .select('*')
                 .eq('student_id', currentStudentId)
                 .neq('final_status', 'rejected')
+                .neq('final_status', 'completed')
+                .eq('returned_to_campus', false)
                 .order('created_at', { ascending: false });
 
-            const hasActiveOrPending = activeReqs && activeReqs.some(r => {
-                 // True if pending ANYWHERE
-                 if (r.final_status === 'pending') return true;
-                 
-                 // True if approved but not marked IN after being marked OUT
-                 if (r.final_status === 'approved' && !r.is_outside && new Date(r.in_time) > new Date()) {
-                     // hasn't left yet
-                     return true;
-                 }
-                 if (r.final_status === 'approved' && r.is_outside) {
-                     // has left, hasn't re-entered
-                     return true;
-                 }
-                 return false;
-            });
+            const hasActiveOrPending = activeReqs && activeReqs.length > 0;
 
             const btn = document.getElementById('submit-btn');
             const msg = document.getElementById('form-msg');
@@ -220,7 +207,7 @@
             }
 
             // Generate QR for the most recent active approved outpass
-            const approvedReq = activeReqs?.find(r => r.final_status === 'approved' && (!r.is_outside || (r.is_outside && new Date(r.in_time) > new Date())));
+            const approvedReq = activeReqs?.find(r => r.final_status === 'approved');
 
             if (approvedReq) {
                 document.getElementById('qr-section').classList.remove('hidden');
