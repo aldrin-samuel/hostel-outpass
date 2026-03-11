@@ -46,7 +46,7 @@
         async function fetchPendingRequests() {
             const list = document.getElementById('requests-list');
             
-            // Warden sees requests assigned to THEM specifically, where adviser has approved
+            // Warden sees requests assigned to THEM specifically, where adviser AND HOD have both approved
             const { data: requests, error } = await db
                 .from('outpass_requests')
                 .select(`
@@ -61,6 +61,7 @@
                 `)
                 .eq('warden_id', currentWardenId)
                 .eq('adviser_status', 'approved')
+                .eq('hod_status', 'approved')
                 .eq('warden_status', 'pending')
                 .eq('final_status', 'pending')
                 .order('created_at', { ascending: true });

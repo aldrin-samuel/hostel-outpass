@@ -112,6 +112,9 @@ INSERT INTO public.departments (name) VALUES
 -- Run the following in Supabase SQL Editor if updating an existing DB
 -- =====================================================
 
+-- 0. Ensure 'completed' exists in request_status enum (may be missing on older DBs)
+ALTER TYPE request_status ADD VALUE IF NOT EXISTS 'completed';
+
 -- 1. Add warden_id to students
 ALTER TABLE public.students
   ADD COLUMN IF NOT EXISTS warden_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
@@ -178,3 +181,33 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 6. Schedule cron job (run after enabling pg_cron)
 -- SELECT cron.schedule('check-late-returns', '*/5 * * * *', 'SELECT check_late_returns()');
+
+-- =====================================================
+-- 7. Auto-link HOD to Department on Approval
+-- When a user with role='hod' is approved, automatically
+-- set departments.hod_id to that user's UUID for their department.
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION link_hod_to_department()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Fire when status changes TO 'approved' for an HOD
+    IF NEW.role = 'hod' AND NEW.status = 'approved' AND 
+       (OLD.status IS DISTINCT FROM 'approved') THEN
+        
+        -- Update the matching department's hod_id
+        UPDATE public.departments
+        SET hod_id = NEW.id
+        WHERE id = NEW.department_id;
+
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger on public.users table
+DROP TRIGGER IF EXISTS on_hod_approved ON public.users;
+CREATE TRIGGER on_hod_approved
+    AFTER UPDATE ON public.users
+    FOR EACH ROW
+    EXECUTE FUNCTION link_hod_to_department();
