@@ -123,11 +123,12 @@ ALTER TABLE public.students
 ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS name TEXT;
 
--- 2. Add adviser_id, warden_id, returned_to_campus to outpass_requests
+-- 2. Add adviser_id, warden_id, returned_to_campus, late_alert_sent to outpass_requests
 ALTER TABLE public.outpass_requests
   ADD COLUMN IF NOT EXISTS adviser_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS warden_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS returned_to_campus BOOLEAN DEFAULT false;
+  ADD COLUMN IF NOT EXISTS returned_to_campus BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS late_alert_sent BOOLEAN DEFAULT false;
 
 -- 3. Create alerts table for late-return notifications
 CREATE TABLE IF NOT EXISTS public.alerts (
@@ -161,6 +162,7 @@ BEGIN
         JOIN students s ON s.id = o.student_id
         WHERE o.in_time < NOW()
           AND o.returned_to_campus = false
+          AND o.late_alert_sent = false
           AND o.final_status = 'approved'
     LOOP
         -- Insert an alert for the adviser and warden
@@ -173,8 +175,8 @@ BEGIN
             r.warden_id
         );
 
-        -- Delete the outpass request
-        DELETE FROM public.outpass_requests WHERE id = r.id;
+        -- Mark alert as sent (so we don't spam duplicate alerts)
+        UPDATE public.outpass_requests SET late_alert_sent = true WHERE id = r.id;
     END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
