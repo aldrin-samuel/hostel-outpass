@@ -183,6 +183,9 @@
                     returned_to_campus: true,
                     final_status: 'completed'
                 };
+
+                // Delete any associated alerts for this request
+                await db.from('alerts').delete().eq('request_id', currentScannedRequestId);
             }
 
             const { error } = await db
