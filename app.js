@@ -169,6 +169,9 @@ async function checkAuthStateAndRedirect() {
             case 'security':
                 targetPage = 'security.html';
                 break;
+            case 'admin':
+                targetPage = 'admin.html';
+                break;
         }
 
         if (targetPage && !window.location.pathname.includes(targetPage)) {

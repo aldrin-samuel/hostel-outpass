@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. Create Custom Types for Enums
-CREATE TYPE user_role AS ENUM ('student', 'adviser', 'hod', 'warden', 'security');
+CREATE TYPE user_role AS ENUM ('student', 'adviser', 'hod', 'warden', 'security', 'admin');
 CREATE TYPE request_status AS ENUM ('pending', 'approved', 'rejected', 'completed');
 CREATE TYPE user_status AS ENUM ('pending', 'approved');
 
