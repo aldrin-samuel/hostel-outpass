@@ -19,6 +19,19 @@
     </div>
 
     <div class="dashboard-container" style="grid-template-columns: 1fr;">
+        <div class="card animate-fade-in" style="max-width: 1000px; margin: 0 auto 1.5rem auto; width: 100%;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                <div style="text-align: center; padding: 1rem; border-right: 1px solid #eee;">
+                    <div style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 0.5rem;">Students Currently OUT</div>
+                    <div id="out-count" style="font-size: 2rem; font-weight: 700; color: var(--warning);">0</div>
+                </div>
+                <div style="text-align: center; padding: 1rem;">
+                    <div style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 0.5rem;">Late Returns</div>
+                    <div id="late-count" style="font-size: 2rem; font-weight: 700; color: var(--danger);">0</div>
+                </div>
+            </div>
+        </div>
+
         <div class="card animate-fade-in" style="max-width: 1000px; margin: 0 auto; width: 100%;">
             <h3 style="color: var(--primary-color); margin-bottom: 1.5rem;">Pending Requests (Final Approval)</h3>
             
@@ -39,9 +52,26 @@
             const user = await getCurrentUser();
             if (!user) return;
             currentWardenId = user.id;
+            await fetchStats();
             await fetchPendingRequests();
             await fetchAlerts();
         });
+
+        async function fetchStats() {
+            // Count students out
+            const { data: outData } = await db
+                .from('outpass_requests')
+                .select('id, in_time')
+                .eq('warden_id', currentWardenId)
+                .eq('is_outside', true);
+
+            if (outData) {
+                document.getElementById('out-count').textContent = outData.length;
+                
+                const lateCount = outData.filter(r => new Date(r.in_time) < new Date()).length;
+                document.getElementById('late-count').textContent = lateCount;
+            }
+        }
 
         async function fetchPendingRequests() {
             const list = document.getElementById('requests-list');

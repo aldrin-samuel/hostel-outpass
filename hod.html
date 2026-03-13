@@ -19,6 +19,19 @@
     </div>
 
     <div class="dashboard-container" style="grid-template-columns: 1fr;">
+        <div class="card animate-fade-in" style="max-width: 1000px; margin: 0 auto 1.5rem auto; width: 100%;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                <div style="text-align: center; padding: 1rem; border-right: 1px solid #eee;">
+                    <div style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 0.5rem;">Students Currently OUT (Dept)</div>
+                    <div id="out-count" style="font-size: 2rem; font-weight: 700; color: var(--warning);">0</div>
+                </div>
+                <div style="text-align: center; padding: 1rem;">
+                    <div style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 0.5rem;">Late Returns (Dept)</div>
+                    <div id="late-count" style="font-size: 2rem; font-weight: 700; color: var(--danger);">0</div>
+                </div>
+            </div>
+        </div>
+
         <div class="card animate-fade-in" style="max-width: 1000px; margin: 0 auto; width: 100%;">
             <h3 style="color: var(--primary-color); margin-bottom: 1.5rem;">Pending Requests (Your Department)</h3>
             
@@ -50,12 +63,41 @@
             if (hodData) {
                 currentHodId = hodData.id;
                 currentDeptId = hodData.department_id;
+                await fetchStats();
                 await fetchPendingRequests();
             } else {
                 alert("HOD profile not found.");
                 signOut();
             }
         });
+
+        async function fetchStats() {
+            if (!currentDeptId) return;
+
+            // Get all student IDs in this department
+            const { data: deptStudents } = await db
+                .from('students')
+                .select('id')
+                .eq('department_id', currentDeptId);
+            
+            const deptStudentIds = deptStudents ? deptStudents.map(s => s.id) : [];
+
+            if (deptStudentIds.length === 0) return;
+
+            // Count students out among dept students
+            const { data: outData } = await db
+                .from('outpass_requests')
+                .select('id, in_time')
+                .in('student_id', deptStudentIds)
+                .eq('is_outside', true);
+
+            if (outData) {
+                document.getElementById('out-count').textContent = outData.length;
+                
+                const lateCount = outData.filter(r => new Date(r.in_time) < new Date()).length;
+                document.getElementById('late-count').textContent = lateCount;
+            }
+        }
 
         async function fetchPendingRequests() {
             const list = document.getElementById('requests-list');
