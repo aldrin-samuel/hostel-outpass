@@ -55,6 +55,13 @@
             await fetchStats();
             await fetchPendingRequests();
             await fetchAlerts();
+
+            // Auto refresh every 30s
+            setInterval(async () => {
+                await fetchStats();
+                await fetchPendingRequests();
+                await fetchAlerts();
+            }, 30000);
         });
 
         async function fetchStats() {

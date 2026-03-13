@@ -65,6 +65,12 @@
                 currentDeptId = hodData.department_id;
                 await fetchStats();
                 await fetchPendingRequests();
+
+                // Auto refresh every 30s
+                setInterval(async () => {
+                    await fetchStats();
+                    await fetchPendingRequests();
+                }, 30000);
             } else {
                 alert("HOD profile not found.");
                 signOut();

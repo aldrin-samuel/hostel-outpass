@@ -172,6 +172,18 @@
             await fetchGlobalData();
             await fetchPendingStaff();
 
+            // Refresh stats and data every 30 seconds
+            setInterval(async () => {
+                await fetchGlobalData();
+                await fetchPendingStaff();
+            }, 30000);
+
+            // Update overdue counts every minute even without network if needed
+            setInterval(() => {
+                updateStats();
+                applyFilters(); // refresh overdue badges in list
+            }, 60000);
+
             document.getElementById('search-input').addEventListener('input', applyFilters);
             document.getElementById('filter-select').addEventListener('change', applyFilters);
         });
